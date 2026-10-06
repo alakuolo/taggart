@@ -4,6 +4,8 @@ A small, free (MIT) and native macOS app for editing the tags and cover art of
 audio files, including many files at once: FLAC, MP3, M4A (AAC and Apple
 Lossless), Ogg Vorbis, Opus, WAV, AIFF, WavPack, Monkey's Audio (APE) and WMA.
 
+![Taggart's window: an album's files in the list, and the selected file's cover and tags in the side panel](taggart-0.1.0.png)
+
 ## Features
 
 - **Load many files:** open files or whole folders (⌘O), drag them onto the
