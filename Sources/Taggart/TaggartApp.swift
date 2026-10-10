@@ -71,6 +71,7 @@ struct SettingsView: View {
     @AppStorage(Preferences.writeTagsInPlaceKey) private var writeTagsInPlace = false
     @AppStorage(Preferences.shrinkCoversKey) private var shrinkCovers = false
     @AppStorage(Preferences.maxCoverSizeKey) private var maxCoverSize = Preferences.defaultMaxCoverSize
+    @AppStorage(Preferences.musicBrainzContactKey) private var musicBrainzContact = ""
 
     var body: some View {
         Form {
@@ -109,6 +110,18 @@ struct SettingsView: View {
             Section {
                 Toggle("Write tags directly into files", isOn: $writeTagsInPlace)
                 Text("Speeds up saving files on external drives and network shares. Normally each file is saved to a copy that then replaces it, so an interrupted save can't damage the file. On your Mac's own disk that copy is instant, but on other drives the whole file is copied. Writing directly skips the copy, but a save that's interrupted, for example by unplugging the drive, can damage the file.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Section {
+                TextField("MusicBrainz contact:", text: $musicBrainzContact, prompt: Text("Your email address or web page"))
+                if !musicBrainzContact.isEmpty && !MusicBrainzClient.isValidContact(musicBrainzContact) {
+                    Text("Enter an email address, or a web address starting with https://.")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+                Text(MusicBrainzContactNote.text)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

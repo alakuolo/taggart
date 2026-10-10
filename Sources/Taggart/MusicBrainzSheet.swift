@@ -8,6 +8,8 @@ import TaggartCore
 @Observable
 final class MusicBrainzLookup {
     enum Page {
+        /// Asks for the contact address MusicBrainz needs, before the first lookup.
+        case contact
         case search
         case release
     }
@@ -56,6 +58,20 @@ final class MusicBrainzLookup {
         self.ids = ids
         self.library = library
         (album, artist) = library.lookupHints(for: ids)
+        if MusicBrainzClient.isValidContact(Preferences.musicBrainzContact) {
+            searchIfSuggested()
+        } else {
+            page = .contact
+        }
+    }
+
+    /// Continues once a contact address has been entered.
+    func contactEntered() {
+        page = .search
+        searchIfSuggested()
+    }
+
+    private func searchIfSuggested() {
         if !album.isEmpty || !artist.isEmpty {
             Task { await search() }
         }
@@ -67,6 +83,7 @@ final class MusicBrainzLookup {
             return
         }
         guard !isSearching, !(album.isEmpty && artist.isEmpty) else { return }
+        await MusicBrainzClient.shared.setContact(Preferences.musicBrainzContact)
         isSearching = true
         message = nil
         defer {
@@ -100,6 +117,7 @@ final class MusicBrainzLookup {
     /// Looks up the release's tracks, matches the files to them and shows it.
     func open(id: String) async {
         guard !isLoadingRelease else { return }
+        await MusicBrainzClient.shared.setContact(Preferences.musicBrainzContact)
         isLoadingRelease = true
         message = nil
         defer { isLoadingRelease = false }
@@ -205,19 +223,69 @@ struct MusicBrainzSheet: View {
     var body: some View {
         Group {
             switch lookup.page {
+            case .contact:
+                ContactPage(lookup: lookup, cancel: { dismiss() })
+                    .padding(20)
+                    .frame(width: 540)
+                    .fixedSize(horizontal: false, vertical: true)
             case .search:
                 SearchPage(lookup: lookup, fileCount: ids.count, cancel: { dismiss() })
+                    .padding(20)
+                    .frame(minWidth: 820, idealWidth: 900, minHeight: 620, idealHeight: 700)
             case .release:
                 ReleasePage(lookup: lookup, cancel: { dismiss() }, apply: { plan in
                     controller.applyMusicBrainz(plan)
                     dismiss()
                 })
+                .padding(20)
+                .frame(minWidth: 820, idealWidth: 900, minHeight: 620, idealHeight: 700)
             }
         }
-        .padding(20)
-        .frame(minWidth: 820, idealWidth: 900, minHeight: 620, idealHeight: 700)
         .onAppear {
             lookup.start(ids: ids, library: controller.library)
+        }
+    }
+}
+
+/// Why MusicBrainz needs a contact address, for Settings and the lookup.
+enum MusicBrainzContactNote {
+    static let text = "MusicBrainz asks every app that looks up albums to send a contact address, so they can get in touch if something goes wrong. It's sent to MusicBrainz with each lookup, and nowhere else."
+}
+
+private struct ContactPage: View {
+    let lookup: MusicBrainzLookup
+    let cancel: () -> Void
+    @AppStorage(Preferences.musicBrainzContactKey) private var contact = ""
+
+    private var isValid: Bool { MusicBrainzClient.isValidContact(contact) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Look Up on MusicBrainz")
+                .font(.title3.bold())
+            Text("\(MusicBrainzContactNote.text) Enter your email address or a web page; you can change it later in Settings.")
+                .fixedSize(horizontal: false, vertical: true)
+            TextField("Contact", text: $contact, prompt: Text("Your email address or web page"))
+                .textFieldStyle(.roundedBorder)
+                .frame(maxWidth: 380)
+                .onSubmit {
+                    if isValid {
+                        lookup.contactEntered()
+                    }
+                }
+            if !contact.isEmpty && !isValid {
+                Text("Enter an email address, or a web address starting with https://.")
+                    .font(.callout)
+                    .foregroundStyle(.red)
+            }
+            HStack {
+                Spacer()
+                Button("Cancel", role: .cancel, action: cancel)
+                    .keyboardShortcut(.cancelAction)
+                Button("Continue") { lookup.contactEntered() }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(!isValid)
+            }
         }
     }
 }

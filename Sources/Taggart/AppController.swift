@@ -372,6 +372,7 @@ enum Preferences {
     static let writeTagsInPlaceKey = "writeTagsInPlace"
     static let shrinkCoversKey = "shrinkCovers"
     static let maxCoverSizeKey = "maxCoverSize"
+    static let musicBrainzContactKey = "musicBrainzContact"
     static let defaultMaxCoverSize = 1024
     static let coverSizeRange = 64...10_000
 
@@ -383,6 +384,12 @@ enum Preferences {
         guard defaults.bool(forKey: shrinkCoversKey) else { return nil }
         let size = defaults.integer(forKey: maxCoverSizeKey)
         return size > 0 ? size.clamped(to: coverSizeRange) : defaultMaxCoverSize
+    }
+
+    /// The contact address sent to MusicBrainz (see `MusicBrainzClient.contact`);
+    /// empty until the user enters one.
+    static var musicBrainzContact: String {
+        (UserDefaults.standard.string(forKey: musicBrainzContactKey) ?? "").trimmingCharacters(in: .whitespaces)
     }
 
     /// Off by default: the safe save (via a copy) is the default.

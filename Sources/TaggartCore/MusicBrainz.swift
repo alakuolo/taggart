@@ -168,6 +168,8 @@ struct MBReleaseSearch: Decodable {
 }
 
 public enum MusicBrainzError: LocalizedError, Equatable {
+    /// No contact address to send (see `MusicBrainzClient.contact`).
+    case noContact
     case busy
     case notFound
     case failed(status: Int)
@@ -175,6 +177,7 @@ public enum MusicBrainzError: LocalizedError, Equatable {
 
     public var errorDescription: String? {
         switch self {
+        case .noContact: "Enter a contact address for MusicBrainz in Taggart's Settings first."
         case .busy: "MusicBrainz is busy. Try again in a moment."
         case .notFound: "MusicBrainz has no such release."
         case let .failed(status): "MusicBrainz couldn't answer (HTTP \(status))."
@@ -202,13 +205,37 @@ public struct URLSessionTransport: HTTPTransport {
 public actor MusicBrainzClient {
     public static let shared = MusicBrainzClient()
 
-    /// Who's asking. MusicBrainz asks for the app's name, version and a
-    /// contact address (a web page or email address) in the User-Agent.
-    public static let contact = "https://github.com/alakuolo/taggart"
+    /// Who's asking: an email address or web page. MusicBrainz asks every app
+    /// to send one with its name and version (in the User-Agent), so they can
+    /// reach whoever runs a client that misbehaves. No request is sent
+    /// without a valid one.
+    public private(set) var contact: String
 
-    public static var userAgent: String {
+    public func setContact(_ contact: String) {
+        self.contact = contact.trimmingCharacters(in: .whitespaces)
+    }
+
+    /// "Taggart/0.1.1 (someone@example.com)".
+    public static func userAgent(contact: String) -> String {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev"
-        return contact.isEmpty ? "Taggart/\(version)" : "Taggart/\(version) ( \(contact) )"
+        return "Taggart/\(version) (\(contact))"
+    }
+
+    /// Whether `text` can be sent as the contact: an email address, or a web
+    /// page's http(s) address. Spaces and parentheses (which would break the
+    /// User-Agent's format) aren't allowed.
+    public static func isValidContact(_ text: String) -> Bool {
+        let contact = text.trimmingCharacters(in: .whitespaces)
+        guard !contact.isEmpty, !contact.contains(where: { $0.isWhitespace || $0 == "(" || $0 == ")" }) else {
+            return false
+        }
+        if contact.wholeMatch(of: #/[^@]+@[^@]+\.[^@.]+/#) != nil {
+            return true
+        }
+        guard let url = URL(string: contact), let scheme = url.scheme?.lowercased(), let host = url.host() else {
+            return false
+        }
+        return (scheme == "http" || scheme == "https") && host.contains(".")
     }
 
     private static let baseURL = URL(string: "https://musicbrainz.org/ws/2/")!
@@ -218,9 +245,10 @@ public actor MusicBrainzClient {
     /// When the next request may be sent.
     private var nextRequest = ContinuousClock.now
 
-    public init(transport: HTTPTransport = URLSessionTransport(), interval: Duration = .milliseconds(1100),
-                retryDelay: Duration = .seconds(2)) {
+    public init(transport: HTTPTransport = URLSessionTransport(), contact: String = "",
+                interval: Duration = .milliseconds(1100), retryDelay: Duration = .seconds(2)) {
         self.transport = transport
+        self.contact = contact.trimmingCharacters(in: .whitespaces)
         self.interval = interval
         self.retryDelay = retryDelay
     }
@@ -244,10 +272,11 @@ public actor MusicBrainzClient {
     }
 
     private func get(_ path: String, query: [URLQueryItem]) async throws -> Data {
+        guard Self.isValidContact(contact) else { throw MusicBrainzError.noContact }
         var components = URLComponents(url: Self.baseURL.appendingPathComponent(path), resolvingAgainstBaseURL: false)!
         components.queryItems = query + [URLQueryItem(name: "fmt", value: "json")]
         var request = URLRequest(url: components.url!, timeoutInterval: 30)
-        request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue(Self.userAgent(contact: contact), forHTTPHeaderField: "User-Agent")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
         for attempt in 0..<3 {

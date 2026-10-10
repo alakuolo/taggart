@@ -26,9 +26,10 @@ actor FakeTransport: HTTPTransport {
 
 @Suite("MusicBrainz")
 struct MusicBrainzTests {
-    func client(_ responses: [(status: Int, body: Data)]) -> (MusicBrainzClient, FakeTransport) {
+    func client(_ responses: [(status: Int, body: Data)], contact: String = "someone@example.com") -> (MusicBrainzClient, FakeTransport) {
         let transport = FakeTransport(responses)
-        return (MusicBrainzClient(transport: transport, interval: .milliseconds(50), retryDelay: .milliseconds(50)), transport)
+        return (MusicBrainzClient(transport: transport, contact: contact, interval: .milliseconds(50),
+                                  retryDelay: .milliseconds(50)), transport)
     }
 
     @Test func searchesReleases() async throws {
@@ -48,7 +49,7 @@ struct MusicBrainzTests {
         let request = try #require(await transport.requests.first)
         let userAgent = try #require(request.value(forHTTPHeaderField: "User-Agent"))
         #expect(userAgent.hasPrefix("Taggart/"))
-        #expect(userAgent.hasSuffix(" ( https://github.com/alakuolo/taggart )"))
+        #expect(userAgent.hasSuffix(" (someone@example.com)"))
         let items = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems ?? []
         #expect(request.url?.path == "/ws/2/release")
         #expect(items.contains(URLQueryItem(name: "query", value: "release:(OK Computer) AND artist:(Radiohead)")))
@@ -96,6 +97,28 @@ struct MusicBrainzTests {
         await #expect(throws: MusicBrainzError.notFound) { try await missing.release(id: "x") }
         let (garbled, _) = self.client([(200, Data("<html>".utf8))])
         await #expect(throws: MusicBrainzError.unreadable) { try await garbled.release(id: "x") }
+    }
+
+    @Test func needsAContact() async throws {
+        let (client, transport) = client([(200, try fixtureData("musicbrainz-search.json"))], contact: "")
+        await #expect(throws: MusicBrainzError.noContact) { try await client.searchReleases(album: "A", artist: "") }
+        #expect(await transport.requests.isEmpty)
+        // Set later (as from Settings), it's used.
+        await client.setContact(" https://example.org/me ")
+        _ = try await client.searchReleases(album: "A", artist: "")
+        let userAgent = await transport.requests.first?.value(forHTTPHeaderField: "User-Agent")
+        #expect(userAgent?.hasSuffix(" (https://example.org/me)") == true)
+    }
+
+    @Test func checksContacts() {
+        for valid in ["someone@example.com", "a.b+tag@mail.example.fi", "https://github.com/someone/taggart",
+                      "http://example.org", " someone@example.com "] {
+            #expect(MusicBrainzClient.isValidContact(valid), "\(valid)")
+        }
+        for invalid in ["", "someone", "someone@", "@example.com", "someone@example", "ftp://example.org",
+                        "https://localhost", "some one@example.com", "me (at) example.com", "example.com"] {
+            #expect(!MusicBrainzClient.isValidContact(invalid), "\(invalid)")
+        }
     }
 
     @Test func buildsQueries() {

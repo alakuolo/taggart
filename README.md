@@ -70,7 +70,9 @@ Lossless), Ogg Vorbis, Opus, WAV, AIFF, WavPack, Monkey's Audio (APE) and WMA.
   label and other release details, MusicBrainz IDs and the cover from the
   Cover Art Archive. A Changes tab shows everything before it's applied; it's
   undoable and saved with ⌘S like other edits. Tag names follow MusicBrainz
-  Picard's. No account is needed.
+  Picard's. No account is needed, but MusicBrainz asks apps to send a contact
+  address: the first lookup asks for yours (an email address or a web page),
+  which you can change in Settings.
 - **Tags from file names:** the reverse of renaming. File → Tags from File
   Names… (⇧⌘T) reads tags from names with a pattern such as
   `%track% - %title%`; `/` reads folder names too (e.g.

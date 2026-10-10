@@ -24,10 +24,12 @@ links above. Taggart doesn't modify it.
 # Online data
 
 Looking up albums uses two free services; nothing is sent except the search
-(album and artist names, or a release ID).
+(album and artist names, or a release ID) and, to MusicBrainz, the contact
+address entered in Settings.
 
 - **MusicBrainz** (https://musicbrainz.org): its music data is in the public
-  domain (CC0). Taggart identifies itself to it and makes at most one request
-  per second, as its API rules ask.
+  domain (CC0). As its API rules ask, Taggart identifies itself (its name,
+  version and the user's contact address) and makes at most one request per
+  second.
 - **Cover Art Archive** (https://coverartarchive.org): cover images uploaded
   by MusicBrainz users. The images remain their copyright holders'.
